@@ -4,6 +4,7 @@ from collections import deque
 from typing import Optional
 
 import numpy as np
+import jumpy as jp
 
 import gym
 
@@ -58,8 +59,8 @@ class RecordEpisodeStatistics(gym.Wrapper):
         self.num_envs = getattr(env, "num_envs", 1)
         self.t0 = time.perf_counter()
         self.episode_count = 0
-        self.episode_returns: Optional[np.ndarray] = None
-        self.episode_lengths: Optional[np.ndarray] = None
+        self.episode_returns: Optional[jp.ndarray] = None
+        self.episode_lengths: Optional[jp.ndarray] = None
         self.return_queue = deque(maxlen=deque_size)
         self.length_queue = deque(maxlen=deque_size)
         self.is_vector_env = getattr(env, "is_vector_env", False)
@@ -67,8 +68,8 @@ class RecordEpisodeStatistics(gym.Wrapper):
     def reset(self, **kwargs):
         """Resets the environment using kwargs and resets the episode returns and lengths."""
         observations = super().reset(**kwargs)
-        self.episode_returns = np.zeros(self.num_envs, dtype=np.float32)
-        self.episode_lengths = np.zeros(self.num_envs, dtype=np.int32)
+        self.episode_returns = jp.zeros(self.num_envs, dtype=np.float32)
+        self.episode_lengths = jp.zeros(self.num_envs, dtype=np.int32)
         return observations
 
     def step(self, action):
@@ -86,21 +87,23 @@ class RecordEpisodeStatistics(gym.Wrapper):
         self.episode_returns += rewards
         self.episode_lengths += 1
         dones = truncateds | terminateds
-        num_dones = np.sum(dones)
+        num_dones = jp.sum(dones)
         if num_dones:
             episode_info = {
                 "episode": {
-                    "r": np.where(dones, self.episode_returns, 0),
-                    "l": np.where(dones, self.episode_lengths, 0),
+                    "r": jp.where(dones, self.episode_returns, 0),
+                    "l": jp.where(dones, self.episode_lengths, 0),
                     "t": round(time.perf_counter() - self.t0, 6)
                 },
             }
             if self.is_vector_env:
-                episode_info["_episode"] = np.where(dones, True, False)
+                episode_info["_episode"] = jp.where(dones, True, False)
             infos = {**infos, **episode_info}
             self.return_queue.extend(self.episode_returns[dones])
             self.length_queue.extend(self.episode_lengths[dones])
             self.episode_count += num_dones
+            self.episode_returns = jp.index_update(self.episode_returns, dones, 0)
+            self.episode_lengths = jp.index_update(self.episode_returns, dones, 0)
             self.episode_lengths[dones] = 0
             self.episode_returns[dones] = 0
         return (
